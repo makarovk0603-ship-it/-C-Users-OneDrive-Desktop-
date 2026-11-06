@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>ГАЗГОЛЬДЕР: МАФИЯ</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#050505;
+    display:flex; justify-content:center; align-items:center;
+    min-height:100vh; font-family:'Courier New', monospace;
+    overflow:hidden;
+  }
+  #game {
+    position:relative;
+    border:4px solid #1a1a1a;
+    box-shadow:0 0 60px rgba(255,60,0,0.25), inset 0 0 60px rgba(0,0,0,0.8);
+  }
+  canvas { display:block; background:#1a1a1a; }
+
+  #hud {
+    position:absolute; top:12px; left:12px;
+    color:#ffb347; font-size:13px; text-shadow:2px 2px 0 #000;
+    pointer-events:none; display:none; line-height:1.55;
+  }
+  #hud .row { display:flex; gap:8px; align-items:center; }
+  #hud .engine-off { color:#ff3333; }
+  #hud .engine-on  { color:#6bff6b; }
+  #hud .engine-start { color:#ffb347; animation:blink .3s infinite; }
+  @keyframes blink { 50% { opacity:.35; } }
+  #handbrake {
+    display:none; color:#ff2222; font-weight:bold; letter-spacing:1px;
+    text-shadow:2px 2px 0 #000, 0 0 10px #ff2222;
+    animation: blink .5s infinite;
+  }
+  #handbrake.on { display:flex; }
+  #hud .bar {
+    width:90px; height:8px; background:#300;
+    border:1px solid #555; position:relative; display:inline-block;
+  }
+  #hud .bar > i {
+    display:block; height:100%;
+    background:linear-gradient(90deg,#ff2222,#ff8800);
+    transition:width .15s;
+  }
+  #hud .bar.fuel > i { background:linear-gradient(90deg,#ffb347,#ffee66); }
+  #hud .bar.fuel.low > i { background:#ff3333; animation:blink .5s infinite; }
+  #hud .rank { color:#ff6b6b; font-weight:bold; }
+
+  #help {
+    position:absolute; top:10px; right:10px;
+    background:rgba(10,10,10,0.7);
+    border:1px solid #333; border-left:2px solid #ffb347;
+    padding:6px 8px; color:#bbb; font-size:10px; line-height:1.35;
+    text-shadow:1px 1px 0 #000;
+    pointer-events:none; display:none;
+    min-width:140px; border-radius:2px; opacity:0.85;
+  }
+  #help h4 {
+    color:#ffb347; font-size:9px; letter-spacing:1.5px;
+    margin-bottom:4px; border-bottom:1px solid #333;
+    padding-bottom:3px; font-weight:bold;
+  }
+  #help .row { display:flex; justify-content:space-between; gap:6px; align-items:center; }
+  #help kbd {
+    display:inline-block; min-width:12px; text-align:center;
+    background:#1a1a1a; border:1px solid #444;
+    padding:0 3px; border-radius:2px;
+    color:#ffb347; font-family:inherit; font-weight:bold;
+    font-size:9px; line-height:1.3;
+  }
+  #help .desc { color:#888; font-size:9px; }
+
+  #msg {
+    position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+    color:#ff6b6b; font-size:17px; font-weight:bold;
+    text-shadow:2px 2px 0 #000, 0 0 10px currentColor;
+    pointer-events:none; opacity:0; transition:opacity .25s;
+    white-space:nowrap; text-align:center;
+  }
+  #msg.show { opacity:1; }
+
+  .screen {
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    justify-content:center; align-items:center;
+    background:radial-gradient(circle at 50% 40%, rgba(40,10,0,.88), rgba(0,0,0,.98));
+    color:#fff; text-align:center; z-index:10; padding:20px;
+  }
+  .screen h1 {
+    font-size:52px; color:#ff2222; letter-spacing:6px;
+    text-shadow:4px 4px 0 #000, 0 0 30px #ff0000;
+    line-height:1; margin-bottom:6px;
+  }
+  .screen h2 {
+    font-size:15px; color:#ffb347; letter-spacing:8px;
+    margin-bottom:24px; text-shadow:2px 2px 0 #000;
+  }
+  .screen p {
+    font-size:12px; color:#aaa; max-width:620px;
+    line-height:1.7; margin-bottom:6px;
+  }
+  .screen .controls {
+    margin:14px 0 22px; font-size:11px; color:#888; line-height:1.9;
+  }
+  .screen .controls b { color:#ffb347; }
+  .btn {
+    font-family:'Courier New', monospace;
+    font-size:18px; font-weight:bold; letter-spacing:3px;
+    color:#000; background:#ffb347;
+    border:none; padding:14px 40px; cursor:pointer;
+    text-transform:uppercase;
+    box-shadow:0 0 0 3px #000, 0 6px 0 #b35a00, 0 0 25px rgba(255,179,71,.5);
+    transition:transform .08s, box-shadow .08s;
+    margin:5px;
+  }
+  .btn:hover { background:#ffcc66; }
+  .btn:active {
+    transform:translateY(4px);
+    box-shadow:0 0 0 3px #000, 0 2px 0 #b35a00, 0 0 25px rgba(255,179,71,.5);
+  }
+  .btn.secondary {
+    background:#333; color:#ffb347; font-size:14px;
+    box-shadow:0 0 0 3px #000, 0 6px 0 #111;
+  }
+  .btn.secondary:hover { background:#444; }
+  .hidden { display:none !important; }
+
+  .stats { margin:10px 0 20px; font-size:13px; color:#ccc; line-height:1.9; }
+  .stats b { color:#ffb347; }
+  .rank-big { color:#ff6b6b; font-weight:bold; font-size:16px; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="c" width="900" height="600"></canvas>
+
+  <div id="hud">
+    <div class="row">💰 <span id="money">0</span> ₽ &nbsp; 📦 <span id="goods">0</span> &nbsp; ⭐ <span id="score">0</span></div>
+    <div class="row">🏆 <span class="rank" id="rank">Шестёрка</span></div>
+    <div class="row">🔑 <span id="engine" class="engine-off">ВЫКЛ [E/У]</span></div>
+    <div class="row" id="handbrake">🔒 РУЧНИК ЗАТЯНУТ</div>
+    <div class="row">⛽ <div class="bar fuel" id="fuelbar"><i style="width:100%"></i></div></div>
+    <div class="row">🔧 <div class="bar" id="hpbar"><i style="width:100%"></i></div></div>
+    <div class="row">🕒 <span id="clock">22:00</span> &nbsp; 🏎️ <span id="speed">0</span></div>
+  </div>
+
+  <div id="help">
+    <h4>УПРАВЛЕНИЕ</h4>
+    <div class="row"><span><kbd>E/У</kbd></span><span class="desc">зажигание</span></div>
+    <div class="row"><span><kbd>W/Ц</kbd></span><span class="desc">газ</span></div>
+    <div class="row"><span><kbd>S/Ы</kbd></span><span class="desc">тормоз/назад</span></div>
+    <div class="row"><span><kbd>A/Ф</kbd></span><span class="desc">руль влево</span></div>
+    <div class="row"><span><kbd>D/В</kbd></span><span class="desc">руль вправо</span></div>
+    <div class="row"><span><kbd>Shift</kbd></span><span class="desc">ручник</span></div>
+    <div class="row"><span><kbd>F/А</kbd></span><span class="desc">заправка</span></div>
+    <div class="row"><span><kbd>R/К</kbd></span><span class="desc">ремонт</span></div>
+    <div class="row"><span><kbd>ESC</kbd></span><span class="desc">пауза</span></div>
+  </div>
+
+  <div id="msg"></div>
+
+  <div id="menu" class="screen">
+    <h1>ГАЗГОЛЬДЕР</h1>
+    <h2>МАФИЯ</h2>
+    <p>Чёрный автомобиль. Ночной город. Ты — курьер мафии.</p>
+    <p>Собирай деньги на закладках, вези дилеру за товаром, продавай товар. Следи за топливом и чини тачку.</p>
+    <p style="color:#ff6b6b;margin-top:8px">Рекорд: <b id="bestScore">0</b> очков</p>
+    <div class="controls">
+      <b>E / У</b> — зажигание &nbsp;•&nbsp; <b>WASD / ЦФЫВ</b> — управление<br>
+      <b>Shift</b> — ручник &nbsp;•&nbsp; <b>F / А</b> — заправка &nbsp;•&nbsp; <b>R / К</b> — ремонт &nbsp;•&nbsp; <b>ESC</b> — пауза
+    </div>
+    <button class="btn" id="startBtn">Начать игру</button>
+  </div>
+
+  <div id="end" class="screen hidden">
+    <h1 id="endTitle">ИТОГИ</h1>
+    <h2 id="endSub">СМЕНА ЗАВЕРШЕНА</h2>
+    <div class="stats" id="endStats"></div>
+    <button class="btn" id="restartBtn">Играть снова</button>
+  </div>
+
+  <div id="pause" class="screen hidden">
+    <h1 style="font-size:40px">ПАУЗА</h1>
+    <div class="stats" id="pauseStats"></div>
+    <button class="btn" id="resumeBtn">Продолжить</button>
+    <button class="btn secondary" id="finishBtn">Завершить</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  БАЗА
+// ============================================================
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W = canvas.width, H = canvas.height;
+var GRID = 50;
+var MAP_W = Math.floor(W / GRID), MAP_H = Math.floor(H / GRID);
+
+var STATE = { MENU:'menu', PLAYING:'playing', PAUSED:'paused', OVER:'over' };
+var gameState = STATE.MENU;
+
+var CONFIG = {
+  BUY_PRICE: 500, SELL_PRICE: 800,
+  POINT_RESPAWN: 8000, PICKUP_RADIUS: 26, DEALER_RADIUS: 42,
+  START_DELAY: 0.8,
+  FUEL_MAX: 100, FUEL_CONSUME: 0.35, FUEL_PRICE: 15,
+  HP_MAX: 100, REPAIR_PRICE: 10,
+  DAY_LENGTH: 180, EVENT_DURATION: 25,
+  HANDBRAKE_DECEL: 0.5
+};
+
+// ============================================================
+//  ЛЮТАЯ АРКАДНАЯ ФИЗИКА (как в первой версии)
+// ============================================================
+var PHYS = {
+  maxSpeed: 4.5,           // макс вперёд — быстро!
+  maxReverse: 2.2,         // задний ход
+  accel: 0.22,             // резкий разгон
+  brake: 0.40,             // резкое торможение
+  friction: 0.03,
+  drag: 0.97,              // сильное сопротивление (лёгкий дрифт)
+  turnRate: 0.075,         // быстрый поворот руля
+  minTurnSpeed: 0.15,      // поворот уже с малой скорости
+  turnSpeedFactor: 0.35    // на скорости руль почти не режется
+};
+
+var RANKS = [
+  { name:'Шестёрка',      min:0 },
+  { name:'Бегунок',       min:500 },
+  { name:'Курьер',        min:1500 },
+  { name:'Бригадир',      min:3500 },
+  { name:'Авторитет',     min:7000 },
+  { name:'Вор в законе',  min:15000 }
+];
+
+// ============================================================
+//  АУДИО
+// ============================================================
+var AudioSys = {
+  ctx: null, engineOsc: null, engineGain: null, running: false,
+  init: function () {
+    if (this.ctx) return;
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { this.ctx = null; }
+  },
+  startEngine: function () {
+    if (!this.ctx || this.running) return;
+    this.running = true;
+    var c = this.ctx;
+    this.engineOsc = c.createOscillator();
+    this.engineGain = c.createGain();
+    this.engineOsc.type = 'sawtooth';
+    this.engineOsc.frequency.value = 55;
+    this.engineGain.gain.value = 0.035;
+    this.engineOsc.connect(this.engineGain).connect(c.destination);
+    this.engineOsc.start();
+  },
+  stopEngine: function () {
+    if (!this.running || !this.ctx) return;
+    try {
+      this.engineGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.08);
+      this.engineOsc.stop(this.ctx.currentTime + 0.15);
+    } catch (e) {}
+    this.engineOsc = null; this.engineGain = null; this.running = false;
+  },
+  setSpeed: function (v) {
+    if (!this.engineOsc || !this.ctx) return;
+    var f = 55 + Math.abs(v) * 32;
+    this.engineOsc.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.04);
+  },
+  beep: function (freq, dur, type, vol) {
+    if (!this.ctx) return;
+    freq = freq || 600; dur = dur || 0.12; type = type || 'square'; vol = vol || 0.06;
+    var c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.value = vol;
+    o.connect(g).connect(c.destination);
+    o.start();
+    g.gain.setTargetAtTime(0, c.currentTime + dur * 0.5, dur * 0.3);
+    o.stop(c.currentTime + dur + 0.05);
+  },
+  pickup: function () { this.beep(880, .09, 'square', .05); var s = this; setTimeout(function(){ s.beep(1200,.08,'square',.05); }, 70); },
+  sell: function () { this.beep(600, .08, 'sine', .06); var s = this; setTimeout(function(){ s.beep(900,.08,'sine',.06); }, 60); setTimeout(function(){ s.beep(1200,.1,'sine',.06); }, 120); },
+  buy: function () { this.beep(400, .1, 'sine', .06); var s = this; setTimeout(function(){ s.beep(500,.08,'sine',.05); }, 80); },
+  fuel: function () { this.beep(350, .15, 'triangle', .05); },
+  error: function () { this.beep(180, .25, 'sawtooth', .06); },
+  start: function () { this.beep(220, .2, 'sawtooth', .05); var s = this; setTimeout(function(){ s.beep(180,.3,'sawtooth',.05); }, 150); },
+  engineOK: function () { this.beep(280, .1, 'sine', .05); var s = this; setTimeout(function(){ s.beep(340,.15,'sine',.05); }, 100); },
+  handbrakeOn: function () { this.beep(140, .12, 'square', .05); },
+  handbrakeOff: function () { this.beep(240, .1, 'square', .05); }
+};
+
+// ============================================================
+//  КАРТА
+// ============================================================
+var map = [];
+function buildMap() {
+  map.length = 0;
+  for (var y = 0; y < MAP_H; y++) {
+    map[y] = [];
+    for (var x = 0; x < MAP_W; x++) {
+      map[y][x] = (x % 3 === 0 || y % 3 === 0) ? 0 : 1;
+    }
+  }
+}
+buildMap();
+
+function isWall(px, py) {
+  var gx = Math.floor(px / GRID), gy = Math.floor(py / GRID);
+  if (gx < 0 || gy < 0 || gx >= MAP_W || gy >= MAP_H) return true;
+  return map[gy][gx] === 1;
+}
+
+// ============================================================
+//  СУЩНОСТИ
+// ============================================================
+var car = {
+  x: 450, y: 300, w: 28, h: 15,
+  angle: 0, speed: 0, steer: 0,
+  money: 0, goods: 0, score: 0,
+  engine: 'off', startTimer: 0,
+  fuel: 100, hp: 100,
+  handbrake: false,
+  tireTimer: 0, exhaustTimer: 0,
+  driftTimer: 0
+};
+
+var dealerA = { x: 60,  y: 300, buyMult: 1.0, name: 'Дилер А' };
+var dealerB = { x: 840, y: 300, buyMult: 0.9, name: 'Дилер Б' };
+var fuelStations = [{ x: 300, y: 75 }, { x: 600, y: 525 }];
+var garages = [{ x: 75, y: 525 }, { x: 825, y: 75 }];
+
+var moneyPoints = [];
+var POINT_TYPES = [
+  { name:'мелкая',  amount:500,  weight:60, color:'#ffb347' },
+  { name:'средняя', amount:1200, weight:30, color:'#ff8800' },
+  { name:'крупная', amount:2500, weight:10, color:'#ff4400' }
+];
+
+function pickPointType() {
+  var total = 0, i;
+  for (i = 0; i < POINT_TYPES.length; i++) total += POINT_TYPES[i].weight;
+  var r = Math.random() * total;
+  for (i = 0; i < POINT_TYPES.length; i++) {
+    r -= POINT_TYPES[i].weight;
+    if (r <= 0) return POINT_TYPES[i];
+  }
+  return POINT_TYPES[0];
+}
+
+function spawnPoints() {
+  moneyPoints = [];
+  var spots = [
+    { x: 150, y: 150 }, { x: 750, y: 150 },
+    { x: 150, y: 450 }, { x: 750, y: 450 },
+    { x: 450, y: 75  }, { x: 450, y: 525 },
+    { x: 300, y: 300 }, { x: 600, y: 300 }
+  ];
+  for (var i = 0; i < spots.length; i++) {
+    moneyPoints.push({
+      x: spots[i].x, y: spots[i].y, taken: false,
+      type: pickPointType(), respawnAt: 0
+    });
+  }
+}
+
+var event = { active: false, type: null, timeLeft: 0 };
+var elapsed = 0;
+var msgTimer = 0;
+var bestScore = parseInt(localStorage.getItem('gazgolder_best') || '0', 10);
+
+var tireMarks = [];
+var exhaust = [];
+
+// ============================================================
+//  КЛЮЧИ — через e.code
+// ============================================================
+var CODE_MAP = {
+  'KeyW': 'up',    'ArrowUp':    'up',
+  'KeyS': 'down',  'ArrowDown':  'down',
+  'KeyA': 'left',  'ArrowLeft':  'left',
+  'KeyD': 'right', 'ArrowRight': 'right',
+  'KeyE': 'engine',
+  'KeyF': 'fuel',
+  'KeyR': 'repair',
+  'Escape': 'esc',
+  'ShiftLeft': 'handbrake',
+  'ShiftRight': 'handbrake'
+};
+
+var keys = {};
+var pressedCodes = {};
+
+window.addEventListener('keydown', function (e) {
+  var act = CODE_MAP[e.code];
+  if (!act) return;
+
+  if (act === 'up' || act === 'down' || act === 'left' || act === 'right') {
+    e.preventDefault();
+  }
+
+  if (!keys[act]) {
+    if (act === 'engine'    && gameState === STATE.PLAYING) toggleEngine();
+    if (act === 'fuel'      && gameState === STATE.PLAYING) tryRefuel();
+    if (act === 'repair'    && gameState === STATE.PLAYING) tryRepair();
+    if (act === 'handbrake' && gameState === STATE.PLAYING) toggleHandbrake();
+    if (act === 'esc') {
+      if (gameState === STATE.PLAYING) pauseGame();
+      else if (gameState === STATE.PAUSED) resumeGame();
+    }
+  }
+
+  keys[act] = true;
+  pressedCodes[e.code] = act;
+});
+
+window.addEventListener('keyup', function (e) {
+  var act = pressedCodes[e.code];
+  if (act) {
+    keys[act] = false;
+    delete pressedCodes[e.code];
+  }
+});
+
+window.addEventListener('blur', function () {
+  for (var k in keys) keys[k] = false;
+  for (var c in pressedCodes) delete pressedCodes[c];
+});
+
+// ============================================================
+//  ДЕЙСТВИЯ
+// ============================================================
+function toggleEngine() {
+  AudioSys.init();
+  if (car.engine === 'off') {
+    if (car.fuel <= 0) { showMsg('⛽ Нет топлива — заправься (F/А на АЗС)', '#ff3333'); AudioSys.error(); return; }
+    if (car.hp <= 0)   { showMsg('🔧 Машина убита — ремонт (R/К в гараже)', '#ff3333'); AudioSys.error(); return; }
+    car.engine = 'starting';
+    car.startTimer = CONFIG.START_DELAY;
+    AudioSys.start();
+    showMsg('🔑 Стартер...', '#ffb347');
+  } else {
+    car.engine = 'off';
+    car.startTimer = 0;
+    car.speed = 0;
+    AudioSys.stopEngine();
+    showMsg('🔑 Двигатель заглушён', '#ff6666');
+  }
+}
+
+function toggleHandbrake() {
+  car.handbrake = !car.handbrake;
+  if (car.handbrake) {
+    AudioSys.handbrakeOn();
+    showMsg('🔒 Ручник затянут', '#ff4444');
+  } else {
+    AudioSys.handbrakeOff();
+    showMsg('🔓 Ручник отпущен', '#6bff6b');
+  }
+  updateHandbrakeUI();
+}
+
+function updateHandbrakeUI() {
+  var hb = document.getElementById('handbrake');
+  if (car.handbrake) hb.classList.add('on');
+  else hb.classList.remove('on');
+}
+
+function tryRefuel() {
+  var near = null, i;
+  for (i = 0; i < fuelStations.length; i++) {
+    if (Math.hypot(car.x - fuelStations[i].x, car.y - fuelStations[i].y) < 50) { near = fuelStations[i]; break; }
+  }
+  if (!near) { showMsg('Подъедь к АЗС ⛽', '#ff8888'); return; }
+  if (car.fuel >= CONFIG.FUEL_MAX - 0.5) { showMsg('Бак полный', '#888'); return; }
+
+  var need = CONFIG.FUEL_MAX - car.fuel;
+  var cost = Math.ceil(need * CONFIG.FUEL_PRICE);
+
+  if (car.money < cost) {
+    var can = Math.floor(car.money / CONFIG.FUEL_PRICE);
+    if (can > 0) {
+      car.fuel += can;
+      car.money -= can * CONFIG.FUEL_PRICE;
+      AudioSys.fuel();
+      showMsg('⛽ +' + can + '% топлива (' + (can * CONFIG.FUEL_PRICE) + ' ₽)', '#ffb347');
+    } else {
+      showMsg('Нужно ' + cost + ' ₽ на полный бак', '#ff8888');
+    }
+    return;
+  }
+  car.money -= cost;
+  car.fuel = CONFIG.FUEL_MAX;
+  AudioSys.fuel();
+  showMsg('⛽ Полный бак за ' + cost + ' ₽', '#6bff6b');
+}
+
+function tryRepair() {
+  var near = null, i;
+  for (i = 0; i < garages.length; i++) {
+    if (Math.hypot(car.x - garages[i].x, car.y - garages[i].y) < 50) { near = garages[i]; break; }
+  }
+  if (!near) { showMsg('Подъедь к гаражу 🔧', '#ff8888'); return; }
+  if (car.hp >= CONFIG.HP_MAX - 0.5) { showMsg('Машина целая', '#888'); return; }
+
+  var need = CONFIG.HP_MAX - car.hp;
+  var cost = Math.ceil(need * CONFIG.REPAIR_PRICE);
+
+  if (car.money < cost) {
+    var can = Math.floor(car.money / CONFIG.REPAIR_PRICE);
+    if (can > 0) {
+      car.hp += can;
+      car.money -= can * CONFIG.REPAIR_PRICE;
+      AudioSys.buy();
+      showMsg('🔧 +' + can + '% прочности (' + (can * CONFIG.REPAIR_PRICE) + ' ₽)', '#ffb347');
+    } else {
+      showMsg('Нужно ' + cost + ' ₽ на ремонт', '#ff8888');
+    }
+    return;
+  }
+  car.money -= cost;
+  car.hp = CONFIG.HP_MAX;
+  AudioSys.buy();
+  showMsg('🔧 Полный ремонт за ' + cost + ' ₽', '#6bff6b');
+}
+
+// ============================================================
+//  UI
+// ============================================================
+function $(id) { return document.getElementById(id); }
+var menuEl = $('menu'), endEl = $('end'), pauseEl = $('pause');
+var hudEl = $('hud'), helpEl = $('help'), msgEl = $('msg');
+
+function showMsg(text, color) {
+  color = color || '#ff6b6b';
+  msgEl.textContent = text;
+  msgEl.style.color = color;
+  msgEl.style.textShadow = '2px 2px 0 #000, 0 0 10px ' + color;
+  msgEl.classList.add('show');
+  msgTimer = 140;
+}
+
+function rankFor(score) {
+  var r = RANKS[0];
+  for (var i = 0; i < RANKS.length; i++) if (score >= RANKS[i].min) r = RANKS[i];
+  return r;
+}
+
+function formatTime(sec) {
+  var total = (22 + Math.floor(sec / CONFIG.DAY_LENGTH * 24)) % 24;
+  var m = Math.floor((sec % CONFIG.DAY_LENGTH) / CONFIG.DAY_LENGTH * 60);
+  return (total < 10 ? '0' : '') + total + ':' + (m < 10 ? '0' : '') + m;
+}
+
+function updateHUD() {
+  $('money').textContent = car.money;
+  $('goods').textContent = car.goods;
+  $('score').textContent = car.score;
+  $('rank').textContent = rankFor(car.score).name;
+  $('speed').textContent = Math.round(Math.abs(car.speed) * 30);
+  $('clock').textContent = formatTime(elapsed);
+
+  var eng = $('engine');
+  if (car.engine === 'off') {
+    eng.textContent = 'ВЫКЛ [E/У]';
+    eng.className = 'engine-off';
+  } else if (car.engine === 'starting') {
+    eng.textContent = 'СТАРТЕР';
+    eng.className = 'engine-start';
+  } else {
+    eng.textContent = 'ВКЛ';
+    eng.className = 'engine-on';
+  }
+
+  updateHandbrakeUI();
+
+  var fb = $('fuelbar');
+  fb.querySelector('i').style.width = Math.max(0, car.fuel) + '%';
+  if (car.fuel < 20) fb.classList.add('low'); else fb.classList.remove('low');
+
+  $('hpbar').querySelector('i').style.width = Math.max(0, car.hp) + '%';
+}
+
+// ============================================================
+//  СОСТОЯНИЯ
+// ============================================================
+function resetGame() {
+  car.x = 450; car.y = 300;
+  car.angle = 0; car.speed = 0; car.steer = 0;
+  car.money = 0; car.goods = 0; car.score = 0;
+  car.engine = 'off'; car.startTimer = 0;
+  car.fuel = CONFIG.FUEL_MAX; car.hp = CONFIG.HP_MAX;
+  car.handbrake = false;
+  car.tireTimer = 0; car.exhaustTimer = 0; car.driftTimer = 0;
+
+  event = { active: false, type: null, timeLeft: 0 };
+  elapsed = 0; msgTimer = 0;
+  tireMarks = []; exhaust = [];
+
+  msgEl.classList.remove('show');
+  spawnPoints();
+  updateHUD();
+}
+
+function startGame() {
+  AudioSys.init();
+  resetGame();
+  gameState = STATE.PLAYING;
+  menuEl.classList.add('hidden');
+  endEl.classList.add('hidden');
+  pauseEl.classList.add('hidden');
+  hudEl.style.display = 'block';
+  helpEl.style.display = 'block';
+  showMsg('Нажми E или У — зажигание', '#ffb347');
+}
+
+function pauseGame() {
+  gameState = STATE.PAUSED;
+  $('pauseStats').innerHTML =
+    '⭐ Очки: <b>' + car.score + '</b><br>' +
+    '🏆 Ранг: <span class="rank-big">' + rankFor(car.score).name + '</span><br>' +
+    '💰 Деньги: <b>' + car.money + ' ₽</b><br>' +
+    '📦 Товар: <b>' + car.goods + '</b><br>' +
+    '🕒 В игре: <b>' + Math.floor(elapsed) + ' с</b>';
+  pauseEl.classList.remove('hidden');
+}
+
+function resumeGame() {
+  gameState = STATE.PLAYING;
+  pauseEl.classList.add('hidden');
+}
+
+function endGame() {
+  gameState = STATE.OVER;
+  hudEl.style.display = 'none';
+  helpEl.style.display = 'none';
+  msgEl.classList.remove('show');
+  AudioSys.stopEngine();
+
+  if (car.score > bestScore) {
+    bestScore = car.score;
+    localStorage.setItem('gazgolder_best', String(bestScore));
+  }
+
+  $('endTitle').textContent = 'ИТОГИ';
+  $('endSub').textContent = 'ТЫ — ' + rankFor(car.score).name.toUpperCase();
+  $('endStats').innerHTML =
+    '⭐ Очки: <b>' + car.score + '</b><br>' +
+    '🏆 Ранг: <span class="rank-big">' + rankFor(car.score).name + '</span><br>' +
+    '💰 Деньги: <b>' + car.money + ' ₽</b><br>' +
+    '📦 Товар на руках: <b>' + car.goods + '</b><br>' +
+    '🕒 В игре: <b>' + Math.floor(elapsed) + ' с</b><br>' +
+    '🥇 Рекорд: <b>' + bestScore + '</b>';
+  endEl.classList.remove('hidden');
+}
+
+$('startBtn').addEventListener('click', startGame);
+$('restartBtn').addEventListener('click', startGame);
+$('resumeBtn').addEventListener('click', resumeGame);
+$('finishBtn').addEventListener('click', endGame);
+
+// ============================================================
+//  КОЛЛИЗИИ
+// ============================================================
+function carHitsWall(nx, ny) {
+  var hw = car.w / 2 - 3, hh = car.h / 2 - 3;
+  var cos = Math.cos(car.angle), sin = Math.sin(car.angle);
+  var corners = [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]];
+  for (var i = 0; i < corners.length; i++) {
+    var cx = corners[i][0], cy = corners[i][1];
+    var rx = nx + cx * cos - cy * sin;
+    var ry = ny + cx * sin + cy * cos;
+    if (isWall(rx, ry)) return true;
+  }
+  return false;
+}
+
+// ============================================================
+//  ФИЗИКА — ЛЮТАЯ АРКАДНАЯ
+// ============================================================
+function updateCar(dt) {
+  // Стартер
+  if (car.engine === 'starting') {
+    car.startTimer -= dt;
+    car.speed *= 0.8;
+    car.steer *= 0.9;
+    if (car.startTimer <= 0) {
+      car.engine = 'on';
+      AudioSys.startEngine();
+      AudioSys.engineOK();
+      showMsg('🔑 Заведён — жми W/Ц', '#6bff6b');
+    }
+    return;
+  }
+
+  // Ручник — держит на месте, но при отпускании всё сразу работает
+  if (car.handbrake) {
+    if (Math.abs(car.speed) < CONFIG.HANDBRAKE_DECEL) car.speed = 0;
+    else car.speed -= Math.sign(car.speed) * CONFIG.HANDBRAKE_DECEL;
+    car.steer *= 0.85;
+    AudioSys.setSpeed(0);
+    return;
+  }
+
+  var engineOn = car.engine === 'on';
+  var noFuel = car.fuel <= 0;
+  var dead = car.hp <= 0;
+
+  if (engineOn && (noFuel || dead)) {
+    car.engine = 'off';
+    car.speed *= 0.9;
+    AudioSys.stopEngine();
+    if (noFuel) showMsg('⛽ Топливо кончилось', '#ff3333');
+    if (dead)   showMsg('🔧 Машина разбита', '#ff3333');
+    return;
+  }
+
+  var up    = engineOn && keys['up'];
+  var down  = engineOn && keys['down'];
+  var left  = engineOn && keys['left'];
+  var right = engineOn && keys['right'];
+
+  // === РАЗГОН / ТОРМОЖЕНИЕ ===
+  if (up) {
+    car.speed += PHYS.accel;
+  } else if (down) {
+    if (car.speed > 0.05) {
+      car.speed -= PHYS.brake;
+      if (car.speed < 0) car.speed = 0;
+    } else {
+      car.speed -= PHYS.accel * 0.85;
+    }
+  } else {
+    // Естественное замедление
+    if (Math.abs(car.speed) < PHYS.friction) car.speed = 0;
+    else car.speed -= Math.sign(car.speed) * PHYS.friction;
+  }
+
+  car.speed = Math.max(-PHYS.maxReverse, Math.min(PHYS.maxSpeed, car.speed));
+  car.speed *= PHYS.drag;
+
+  // === РУЛЬ ===
+  var targetSteer = 0;
+  if (left)  targetSteer -= 1;
+  if (right) targetSteer += 1;
+  car.steer += (targetSteer - car.steer) * 0.30;  // мгновенный отклик
+
+  // === ПОВОРОТ ===
+  var absSpeed = Math.abs(car.speed);
+  if (absSpeed > PHYS.minTurnSpeed) {
+    var sf = 1 - PHYS.turnSpeedFactor * (absSpeed / PHYS.maxSpeed);
+    var dir = car.speed >= 0 ? 1 : -1;
+    var turn = car.steer * PHYS.turnRate * sf * dir;
+
+    // На высокой скорости — лёгкий дрифт (угол кузова > направления)
+    if (absSpeed > PHYS.maxSpeed * 0.7 && Math.abs(car.steer) > 0.5) {
+      car.driftTimer += dt;
+      turn *= 1.4;  // усиленный занос
+    } else {
+      car.driftTimer = 0;
+    }
+
+    car.angle += turn;
+  }
+
+  // === ДВИЖЕНИЕ ===
+  var vx = Math.cos(car.angle) * car.speed;
+  var vy = Math.sin(car.angle) * car.speed;
+  var nx = car.x + vx, ny = car.y + vy;
+
+  var hitX = carHitsWall(nx, car.y);
+  var hitY = carHitsWall(car.x, ny);
+  if (!hitX) car.x = nx;
+  if (!hitY) car.y = ny;
+
+  if (hitX || hitY) {
+    var impact = Math.abs(car.speed);
+    car.speed *= -0.3;  // упругий отскок
+    if (impact > 1.8) {
+      car.hp -= impact * 2.8;
+      if (car.hp < 0) car.hp = 0;
+      AudioSys.beep(120, 0.15, 'sawtooth', 0.05);
+      if (car.hp <= 0) showMsg('💥 Машина разбита — нужен ремонт', '#ff3333');
+    }
+  }
+
+  if (car.x < 20)     { car.x = 20;     car.speed *= 0.4; }
+  if (car.x > W - 20) { car.x = W - 20; car.speed *= 0.4; }
+  if (car.y < 20)     { car.y = 20;     car.speed *= 0.4; }
+  if (car.y > H - 20) { car.y = H - 20; car.speed *= 0.4; }
+
+  // Расход топлива
+  if (engineOn && absSpeed > 0.2) {
+    car.fuel -= CONFIG.FUEL_CONSUME * dt;
+    if (car.fuel < 0) car.fuel = 0;
+  }
+  AudioSys.setSpeed(car.speed);
+
+  // === СЛЕДЫ ШИН (более частые — эффект дрифта) ===
+  car.tireTimer -= dt;
+  if (engineOn && absSpeed > 1.0 && car.tireTimer <= 0) {
+    car.tireTimer = car.driftTimer > 0 ? 0.03 : 0.05;
+    if (tireMarks.length < 200) {
+      tireMarks.push({
+        x: car.x - Math.cos(car.angle) * car.w / 2,
+        y: car.y - Math.sin(car.angle) * car.w / 2,
+        angle: car.angle,
+        life: car.driftTimer > 0 ? 1.3 : 1.0
+      });
+    }
+  }
+
+  // === ДЫМ ===
+  car.exhaustTimer -= dt;
+  if (engineOn && car.exhaustTimer <= 0) {
+    car.exhaustTimer = car.driftTimer > 0 ? 0.06 : 0.12;
+    exhaust.push({
+      x: car.x - Math.cos(car.angle) * car.w / 2,
+      y: car.y - Math.sin(car.angle) * car.w / 2,
+      vx: -Math.cos(car.angle) * 0.4 + (Math.random() - 0.5) * 0.3,
+      vy: -Math.sin(car.angle) * 0.4 + (Math.random() - 0.5) * 0.3,
+      life: 1.0,
+      size: 2 + Math.random() * 2
+    });
+  }
+}
+
+// ============================================================
+//  СОБЫТИЯ
+// ============================================================
+var EVENT_TYPES = [
+  { id: 'deficit', name: '📉 ДЕФИЦИТ — закупка дешевле!', color: '#6bff6b' },
+  { id: 'boom',    name: '🔥 АЖИОТАЖ — продажа дороже!',  color: '#ffb347' }
+];
+
+function maybeStartEvent() {
+  if (event.active) return;
+  if (Math.random() < 0.008) {
+    var t = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)];
+    event = { active: true, type: t, timeLeft: CONFIG.EVENT_DURATION };
+    showMsg(t.name, t.color);
+    AudioSys.beep(800, .15, 'sine', .05);
+  }
+}
+
+// ============================================================
+//  ИГРОВАЯ ЛОГИКА
+// ============================================================
+function updateGame(dt) {
+  elapsed += dt;
+  updateHUD();
+
+  if (event.active) {
+    event.timeLeft -= dt;
+    if (event.timeLeft <= 0) event = { active: false, type: null, timeLeft: 0 };
+  } else {
+    maybeStartEvent();
+  }
+
+  var i, p, d;
+
+  for (i = 0; i < moneyPoints.length; i++) {
+    p = moneyPoints[i];
+    if (p.taken) {
+      if (Date.now() >= p.respawnAt) p.taken = false;
+      continue;
+    }
+    d = Math.hypot(car.x - p.x, car.y - p.y);
+
+    if (car.goods > 0 && d < CONFIG.PICKUP_RADIUS + 6) {
+      var sold = car.goods;
+      var price = CONFIG.SELL_PRICE;
+      if (event.active && event.type.id === 'boom') price = Math.floor(price * 1.5);
+      var income = sold * price;
+      car.money += income;
+      car.score += sold * 80;
+      car.goods = 0;
+      AudioSys.sell();
+      showMsg('💵 Продал ' + sold + ' шт. за ' + income + ' ₽', '#6bff6b');
+      continue;
+    }
+
+    if (car.goods === 0 && d < CONFIG.PICKUP_RADIUS) {
+      p.taken = true;
+      p.respawnAt = Date.now() + CONFIG.POINT_RESPAWN;
+      var amount = p.type.amount;
+      car.money += amount;
+      car.score += Math.floor(amount / 10);
+      AudioSys.pickup();
+      showMsg('+' + amount + ' ₽ — ' + p.type.name + ' закладка', p.type.color);
+    }
+  }
+
+  var dealers = [dealerA, dealerB];
+  for (i = 0; i < dealers.length; i++) {
+    var dealer = dealers[i];
+    d = Math.hypot(car.x - dealer.x, car.y - dealer.y);
+    if (d < CONFIG.DEALER_RADIUS) {
+      var buyPrice = CONFIG.BUY_PRICE;
+      if (dealer === dealerB) buyPrice = Math.floor(buyPrice * dealer.buyMult);
+      if (event.active && event.type.id === 'deficit') buyPrice = Math.floor(buyPrice * 0.7);
+      if (car.money >= buyPrice) {
+        var canBuy = Math.floor(car.money / buyPrice);
+        car.money -= canBuy * buyPrice;
+        car.goods += canBuy;
+        car.score += canBuy * 30;
+        AudioSys.buy();
+        showMsg('📦 ' + dealer.name + ': куплено ' + canBuy + ' шт. (' + (canBuy * buyPrice) + ' ₽)', '#6bff6b');
+      }
+    }
+  }
+
+  for (i = tireMarks.length - 1; i >= 0; i--) {
+    tireMarks[i].life -= dt * 0.08;
+    if (tireMarks[i].life <= 0) tireMarks.splice(i, 1);
+  }
+  for (i = exhaust.length - 1; i >= 0; i--) {
+    var e = exhaust[i];
+    e.x += e.vx; e.y += e.vy;
+    e.life -= dt * 1.5;
+    if (e.life <= 0) exhaust.splice(i, 1);
+  }
+
+  if (msgTimer > 0) {
+    msgTimer--;
+    if (msgTimer === 0) msgEl.classList.remove('show');
+  }
+}
+
+// ============================================================
+//  ОТРИСОВКА
+// ============================================================
+function timeOfDay() { return (elapsed % CONFIG.DAY_LENGTH) / CONFIG.DAY_LENGTH; }
+
+function skyTint() {
+  var t = timeOfDay();
+  var night = [10, 15, 30], day = [200, 170, 130], dawn = [120, 60, 80];
+  var k, a, b;
+  if (t < 0.25)      { k = t / 0.25;           a = night; b = dawn; }
+  else if (t < 0.5)  { k = (t - 0.25) / 0.25;  a = dawn;  b = day;  }
+  else if (t < 0.75) { k = (t - 0.5) / 0.25;   a = day;   b = dawn; }
+  else               { k = (t - 0.75) / 0.25;  a = dawn;  b = night;}
+  return [
+    Math.round(a[0] * (1 - k) + b[0] * k),
+    Math.round(a[1] * (1 - k) + b[1] * k),
+    Math.round(a[2] * (1 - k) + b[2] * k)
+  ];
+}
+
+function dayAlpha() {
+  var t = timeOfDay();
+  if (t < 0.25) return t / 0.25;
+  if (t < 0.75) return 1;
+  return 1 - (t - 0.75) / 0.25;
+}
+
+function hexToRgb(hex) {
+  var h = hex.replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16),
+    g: parseInt(h.substring(2, 4), 16),
+    b: parseInt(h.substring(4, 6), 16)
+  };
+}
+
+function draw() {
+  var sky = skyTint();
+  ctx.fillStyle = 'rgb(' + sky[0] + ',' + sky[1] + ',' + sky[2] + ')';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(40,40,40,0.75)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(255,200,0,0.14)';
+  ctx.lineWidth = 1;
+  for (var x = 0; x < MAP_W; x++) {
+    for (var y = 0; y < MAP_H; y++) {
+      if (map[y][x] === 0) {
+        if (x % 3 === 0 && y % 3 !== 0) {
+          ctx.beginPath();
+          ctx.moveTo(x * GRID + GRID / 2, y * GRID);
+          ctx.lineTo(x * GRID + GRID / 2, y * GRID + GRID / 2);
+          ctx.stroke();
+        }
+        if (y % 3 === 0 && x % 3 !== 0) {
+          ctx.beginPath();
+          ctx.moveTo(x * GRID, y * GRID + GRID / 2);
+          ctx.lineTo(x * GRID + GRID / 2, y * GRID + GRID / 2);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  for (var i = 0; i < tireMarks.length; i++) {
+    var tm = tireMarks[i];
+    ctx.save();
+    ctx.globalAlpha = tm.life * 0.5;
+    ctx.fillStyle = '#000';
+    ctx.translate(tm.x, tm.y);
+    ctx.rotate(tm.angle);
+    ctx.fillRect(-2, -8, 4, 4);
+    ctx.fillRect(-2, 4, 4, 4);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  var day = dayAlpha();
+  for (var yy = 0; yy < MAP_H; yy++) {
+    for (var xx = 0; xx < MAP_W; xx++) {
+      if (map[yy][xx] === 1) {
+        var px = xx * GRID, py = yy * GRID;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(px + 3, py + 3, GRID - 6, GRID - 6);
+        var shade = 40 + ((xx * 7 + yy * 13) % 30);
+        ctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + (shade + 10) + ')';
+        ctx.fillRect(px + 4, py + 4, GRID - 8, GRID - 8);
+        if ((xx + yy) % 2 === 0) {
+          ctx.fillStyle = 'rgba(255,' + (200 + Math.random() * 40) + ',' + (100 + Math.random() * 50) + ',' + (0.15 + (1 - day) * 0.4) + ')';
+          ctx.fillRect(px + 10, py + 10, 8, 8);
+          ctx.fillRect(px + 28, py + 10, 8, 8);
+          ctx.fillRect(px + 10, py + 28, 8, 8);
+          ctx.fillRect(px + 28, py + 28, 8, 8);
+        }
+      }
+    }
+  }
+
+  for (var f = 0; f < fuelStations.length; f++) {
+    var fs = fuelStations[f];
+    var pulse1 = Math.sin(Date.now() / 300) * 2;
+    var grad1 = ctx.createRadialGradient(fs.x, fs.y, 5, fs.x, fs.y, 40 + pulse1);
+    grad1.addColorStop(0, 'rgba(255,180,0,0.4)');
+    grad1.addColorStop(1, 'rgba(255,180,0,0)');
+    ctx.fillStyle = grad1;
+    ctx.beginPath(); ctx.arc(fs.x, fs.y, 40 + pulse1, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#ffb347';
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⛽', fs.x, fs.y);
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('АЗС [F/А]', fs.x, fs.y - 28);
+  }
+
+  for (var g = 0; g < garages.length; g++) {
+    var gg = garages[g];
+    var pulse2 = Math.sin(Date.now() / 350) * 2;
+    var grad2 = ctx.createRadialGradient(gg.x, gg.y, 5, gg.x, gg.y, 40 + pulse2);
+    grad2.addColorStop(0, 'rgba(100,200,255,0.35)');
+    grad2.addColorStop(1, 'rgba(100,200,255,0)');
+    ctx.fillStyle = grad2;
+    ctx.beginPath(); ctx.arc(gg.x, gg.y, 40 + pulse2, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#66ccff';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('🔧', gg.x, gg.y);
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('ГАРАЖ [R/К]', gg.x, gg.y - 28);
+  }
+
+  var t = Date.now();
+  for (var k = 0; k < moneyPoints.length; k++) {
+    var p = moneyPoints[k];
+    if (p.taken) continue;
+    var pulse3 = Math.sin(t / 200) * 3;
+    var rgb = hexToRgb(p.type.color);
+    var grad3 = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 22 + pulse3);
+    grad3.addColorStop(0, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.7)');
+    grad3.addColorStop(1, 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0)');
+    ctx.fillStyle = grad3;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 22 + pulse3, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = p.type.color;
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('$', p.x, p.y);
+  }
+
+  var dealers = [dealerA, dealerB];
+  for (var di = 0; di < dealers.length; di++) {
+    var dealer = dealers[di];
+    var pulse4 = Math.sin(t / 300) * 2;
+    var grad4 = ctx.createRadialGradient(dealer.x, dealer.y, 5, dealer.x, dealer.y, 40 + pulse4);
+    grad4.addColorStop(0, 'rgba(100,255,100,0.3)');
+    grad4.addColorStop(1, 'rgba(100,255,100,0)');
+    ctx.fillStyle = grad4;
+    ctx.beginPath(); ctx.arc(dealer.x, dealer.y, 40 + pulse4, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.arc(dealer.x, dealer.y - 6, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#6bff6b';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(dealer.name, dealer.x, dealer.y - 26);
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('📦', dealer.x, dealer.y + 20);
+  }
+
+  for (var ei = 0; ei < exhaust.length; ei++) {
+    var e = exhaust[ei];
+    ctx.fillStyle = 'rgba(150,150,150,' + (e.life * 0.4) + ')';
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size * e.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // === МАШИНА ===
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.angle);
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(-car.w / 2 + 2, -car.h / 2 + 3, car.w, car.h);
+
+  // Кузов
+  var bodyColor = car.hp > 50 ? '#0a0a0a' : car.hp > 20 ? '#1a0a0a' : '#2a0000';
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-car.w / 2, -car.h / 2, car.w, car.h);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-car.w / 2, -car.h / 2, car.w, car.h);
+
+  // Крыша
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(-car.w / 4, -car.h / 2 + 2, car.w / 2, car.h - 4);
+
+  // Лобовое
+  ctx.fillStyle = 'rgba(100,150,200,0.55)';
+  ctx.fillRect(car.w / 2 - 8, -car.h / 2 + 2, 4, car.h - 4);
+
+  // Задние фонари
+  if (car.handbrake) {
+    ctx.fillStyle = '#ff3333';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 15;
+  } else {
+    ctx.fillStyle = '#ff2222';
+  }
+  ctx.fillRect(-car.w / 2, -car.h / 2 + 1, 2, 3);
+  ctx.fillRect(-car.w / 2, car.h / 2 - 4, 2, 3);
+  ctx.shadowBlur = 0;
+
+  // Фары
+  if (car.engine === 'on') {
+    ctx.fillStyle = '#ffee66';
+    ctx.shadowColor = '#ffee66';
+    ctx.shadowBlur = 12;
+  } else {
+    ctx.fillStyle = '#665500';
+  }
+  ctx.fillRect(car.w / 2 - 2, -car.h / 2 + 1, 3, 3);
+  ctx.fillRect(car.w / 2 - 2, car.h / 2 - 4, 3, 3);
+  ctx.shadowBlur = 0;
+
+  // Передние колёса
+  var wheelAngle = car.steer * 0.6;
+  ctx.save();
+  ctx.translate(car.w / 2 - 5, 0);
+  ctx.rotate(wheelAngle);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-3, -car.h / 2 - 1, 6, 3);
+  ctx.fillRect(-3, car.h / 2 - 2, 6, 3);
+  ctx.restore();
+
+  // Задние колёса при ручнике
+  if (car.handbrake) {
+    ctx.strokeStyle = 'rgba(255,50,50,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-car.w / 2 + 2, -car.h / 2 - 2, 8, 4);
+    ctx.strokeRect(-car.w / 2 + 2, car.h / 2 - 2, 8, 4);
+  }
+
+  // Дрифт — искры
+  if (car.driftTimer > 0.2 && Math.abs(car.speed) > 2) {
+    var sparkAlpha = Math.random() * 0.5 + 0.3;
+    ctx.fillStyle = 'rgba(255,180,50,' + sparkAlpha + ')';
+    ctx.beginPath();
+    ctx.arc(-car.w / 2 + 4, -car.h / 2 + (Math.random() - 0.5) * 10, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  drawArrows();
+  drawMinimap();
+
+  var vg = ctx.createRadialGradient(W / 2, H / 2, H / 3, W / 2, H / 2, H);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,' + (0.3 + (1 - day) * 0.45) + ')');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  if (gameState === STATE.PLAYING) {
+    if (car.engine === 'off' && !car.handbrake) {
+      ctx.save();
+      ctx.globalAlpha = 0.6 + Math.sin(Date.now() / 250) * 0.3;
+      ctx.fillStyle = '#ffb347';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('НАЖМИ E/У', car.x, car.y - 26);
+      ctx.restore();
+    }
+    if (car.handbrake) {
+      ctx.save();
+      ctx.globalAlpha = 0.7 + Math.sin(Date.now() / 200) * 0.3;
+      ctx.fillStyle = '#ff2222';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('🔒 РУЧНИК', car.x, car.y - 26);
+      ctx.restore();
+    }
+  }
+}
+
+function drawArrows() {
+  var targets = [];
+  var i;
+  if (car.money >= CONFIG.BUY_PRICE && car.goods === 0) {
+    targets.push({ x: dealerA.x, y: dealerA.y, color: 'rgba(107,255,107,0.7)' });
+    targets.push({ x: dealerB.x, y: dealerB.y, color: 'rgba(107,255,107,0.7)' });
+  }
+  if (car.goods > 0) {
+    for (i = 0; i < moneyPoints.length; i++) {
+      if (!moneyPoints[i].taken) targets.push({ x: moneyPoints[i].x, y: moneyPoints[i].y, color: 'rgba(255,200,0,0.7)' });
+    }
+  }
+  if (targets.length === 0) return;
+
+  targets.sort(function (a, b) {
+    return Math.hypot(car.x - a.x, car.y - a.y) - Math.hypot(car.x - b.x, car.y - b.y);
+  });
+
+  var closest = targets[0];
+  var dx = closest.x - car.x, dy = closest.y - car.y;
+  if (Math.hypot(dx, dy) < 80) return;
+
+  var ang = Math.atan2(dy, dx);
+  var ax = car.x + Math.cos(ang) * 55;
+  var ay = car.y + Math.sin(ang) * 55;
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(ang);
+  ctx.fillStyle = closest.color;
+  ctx.beginPath();
+  ctx.moveTo(9, 0);
+  ctx.lineTo(-5, -5);
+  ctx.lineTo(-5, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMinimap() {
+  var mw = 180, mh = 120;
+  var mx = W - mw - 14, my = H - mh - 14;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(mx, my, mw, mh);
+  ctx.strokeStyle = '#ffb347';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(mx, my, mw, mh);
+
+  var sx = mw / W, sy = mh / H;
+  var i;
+
+  ctx.fillStyle = 'rgba(80,80,80,0.4)';
+  for (var y = 0; y < MAP_H; y++) {
+    for (var x = 0; x < MAP_W; x++) {
+      if (map[y][x] === 1) ctx.fillRect(mx + x * GRID * sx, my + y * GRID * sy, GRID * sx, GRID * sy);
+    }
+  }
+
+  for (i = 0; i < moneyPoints.length; i++) {
+    var p = moneyPoints[i];
+    if (p.taken) continue;
+    var rgb = hexToRgb(p.type.color);
+    ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.9)';
+    ctx.beginPath();
+    ctx.arc(mx + p.x * sx, my + p.y * sy, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#6bff6b';
+  var dealers = [dealerA, dealerB];
+  for (i = 0; i < dealers.length; i++) {
+    ctx.fillRect(mx + dealers[i].x * sx - 3, my + dealers[i].y * sy - 3, 6, 6);
+  }
+
+  ctx.fillStyle = '#ffb347';
+  for (i = 0; i < fuelStations.length; i++) {
+    ctx.fillRect(mx + fuelStations[i].x * sx - 2, my + fuelStations[i].y * sy - 2, 4, 4);
+  }
+
+  ctx.fillStyle = '#66ccff';
+  for (i = 0; i < garages.length; i++) {
+    ctx.fillRect(mx + garages[i].x * sx - 2, my + garages[i].y * sy - 2, 4, 4);
+  }
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(mx + car.x * sx, my + car.y * sy, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ============================================================
+//  ЦИКЛ
+// ============================================================
+var last = performance.now();
+
+function loop(now) {
+  var dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  if (gameState === STATE.PLAYING) {
+    updateCar(dt);
+    updateGame(dt);
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+
+document.getElementById('bestScore').textContent = bestScore;
+resetGame();
+</script>
+</body>
+</html>
